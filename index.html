@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python Mini Tasks</title>
+<script>
+  // Where the two libraries this page needs come from: Pyodide (Python that runs
+  // inside the browser) and CodeMirror (the code editor with colours). Each is a
+  // folder address ending in "/". To serve them from this website instead of
+  // from a CDN, see "Hosting the libraries yourself" in README.md.
+  var PYODIDE_URL = "https://cdn.jsdelivr.net/npm/pyodide@314.0.7/";
+  var CODEMIRROR_URL = "https://cdn.jsdelivr.net/npm/codemirror@5.65.16/";
+</script>
+<style>
+  :root {
+    --ink: #1f2330; --muted: #5d6475; --panel: #f3f4f8; --line: #dfe2ea;
+    --accent: #4f46e5; --accent-dark: #4338ca; --accent-soft: #eef0ff;
+    --pass: #2e9e54; --pass-dark: #24803f; --pass-soft: #e8f7ec; --fail: #d23b3b; --fail-soft: #fdecec;
+    --tried: #b86e00; --tried-soft: #fff3d6;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, Arial, sans-serif; max-width: 1240px; margin: 16px auto; padding: 0 16px 40px;
+         color: var(--ink); background: #fff; line-height: 1.45; }
+  h1 { font-size: 1.4em; margin: 0; }
+  h2 { font-size: 1.2em; margin: 0 0 6px; }
+  .hint { color: var(--muted); font-size: 0.92em; margin: 0; }
+  select, button, input, textarea { font: inherit; }
+  button { cursor: pointer; background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 16px; }
+  button:hover { background: var(--accent-dark); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  button.check { background: var(--pass); }
+  button.check:hover { background: var(--pass-dark); }
+  button.secondary { background: #dfe2ea; color: var(--ink); padding: 5px 12px; font-size: 0.9em; }
+  button.secondary:hover { background: #cfd3de; }
+  button.link { background: none; color: var(--accent); padding: 0; text-decoration: underline; font-size: inherit; }
+  a { color: var(--accent); }
+  code { background: #eceef3; padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 0.92em; }
+
+  .top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  .status { font-size: 0.85em; border-radius: 999px; padding: 3px 12px; background: var(--tried-soft); color: #7a4f00; white-space: nowrap; }
+  .status.ready { background: var(--pass-soft); color: var(--pass-dark); }
+  .status.failed { background: var(--fail-soft); color: var(--fail); }
+  .status-row { display: flex; gap: 8px; align-items: center; }
+
+  .layout { display: grid; grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 12px; }
+  @media (max-width: 820px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border-radius: 8px; padding: 14px 16px; }
+  .step { font-weight: 650; margin: 0 0 10px; }
+
+  /* the task list */
+  .section-row { display: grid; gap: 8px; margin-bottom: 12px; }
+  #section { padding: 6px 8px; border: 1px solid #c4c8d4; border-radius: 6px; background: #fff; width: 100%; }
+  .filter-note { margin: -4px 0 12px; font-size: 0.9em; color: var(--muted); }
+  .meter { display: flex; align-items: center; gap: 10px; font-size: 0.9em; color: var(--muted); }
+  .meter .bar { flex: 1; height: 8px; background: #dcdfe8; border-radius: 4px; overflow: hidden; min-width: 60px; }
+  .meter .fill { height: 100%; width: 0; background: var(--pass); transition: width 0.3s; }
+  #task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 70vh; overflow-y: auto; }
+  @media (max-width: 820px) { #task-list { max-height: 32vh; } }
+  #task-list .heading { font-weight: 650; font-size: 0.8em; color: var(--muted);
+                        text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 0; }
+  #task-list .empty { color: var(--muted); padding: 6px 0; }
+  .task { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+          background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+  .task:hover { background: #fff; border-color: #a9aef0; }
+  .task.selected { border: 2px solid var(--accent); background: var(--accent-soft); padding: 7px 9px; }
+  .task .mark { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c3c7d2; background: #fff;
+                display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff; }
+  .task.done .mark { background: var(--pass); border-color: var(--pass); }
+  .task.tried .mark { border-color: var(--tried); background: var(--tried-soft); }
+  .task.scratch .mark { border-style: dashed; color: var(--muted); }
+  .task .tname { flex: 1; min-width: 0; }
+  .task .state { flex: none; font-size: 0.82em; color: var(--muted); white-space: nowrap; }
+  .task.done .state { color: var(--pass); font-weight: 650; }
+  .task.tried .state { color: var(--tried); font-weight: 650; }
+
+  /* the task, the editor and the buttons */
+  #description p { margin: 0 0 8px; }
+  #description ul { margin: 0 0 8px; padding-left: 22px; }
+  #description pre { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 8px;
+                     font-family: var(--mono); font-size: 0.92em; white-space: pre-wrap; }
+  #editor { margin-top: 10px; }
+  #editor .CodeMirror { height: auto; border: 1px solid #c4c8d4; border-radius: 6px; font-family: var(--mono); font-size: 15px; line-height: 1.5; }
+  #editor .CodeMirror-scroll { min-height: 190px; }
+  #editor .CodeMirror-focused { border-color: var(--accent); }
+  #editor .error-line { background: var(--fail-soft); }
+  .plain-editor { display: block; width: 100%; min-height: 220px; resize: vertical; border: 1px solid #c4c8d4; border-radius: 6px;
+                  padding: 8px 10px; font-family: var(--mono); font-size: 15px; line-height: 1.5; tab-size: 4; white-space: pre; overflow: auto; }
+  .run-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+  .run-row .spacer { flex: 1; }
+  #busy { color: var(--muted); font-size: 0.92em; }
+  #notice { background: #fff6db; color: #7a4f00; border-radius: 6px; padding: 8px 12px; margin-top: 12px; font-size: 0.95em; }
+  #notice:empty { display: none; }
+
+  /* what the program printed */
+  #console-box { margin-top: 14px; }
+  .label { font-weight: 650; font-size: 0.8em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  #console { background: #1f2330; color: #e8eaf2; border-radius: 6px; padding: 10px 12px; margin: 0; min-height: 3em;
+             font-family: var(--mono); font-size: 0.95em; white-space: pre-wrap; max-height: 45vh; overflow: auto; }
+  #console .typed { color: #8fd3ff; font-weight: 600; }
+  #console .note { color: #9aa1b5; font-style: italic; }
+  #console .error { color: #ffb4b4; display: block; margin-top: 6px; }
+  #console input { font-family: var(--mono); font-size: inherit; background: #2c3144; color: #8fd3ff; border: 1px solid #5d6475;
+                   border-radius: 4px; padding: 2px 6px; width: min(22em, 70%); }
+  #console input:focus { outline: 2px solid #8fd3ff; }
+
+  /* test results */
+  #score { font-weight: bold; font-size: 1.1em; margin: 18px 0 8px; white-space: pre-wrap; }
+  #score:empty { display: none; }
+  .result { padding: 8px 12px; border-radius: 6px; margin: 6px 0; border-left: 5px solid #ccc; }
+  .pass { background: var(--pass-soft); border-left-color: var(--pass); }
+  .fail { background: var(--fail-soft); border-left-color: var(--fail); }
+  .result .name { font-weight: 600; }
+  .result .msg { font-family: var(--mono); font-size: 0.9em; color: #444; margin-top: 4px; white-space: pre-wrap; }
+  #score, #notice, .task .tname, .result .name, .result .msg, #console, #description { overflow-wrap: anywhere; }
+
+  footer { margin-top: 18px; font-size: 0.85em; color: var(--muted); }
+</style>
+</head>
+<body>
+  <header class="top">
+    <h1>Python Mini Tasks</h1>
+    <div class="status-row">
+      <span class="status" id="status" role="status">Starting Python…</span>
+      <button type="button" class="secondary" id="retry" hidden>Try again</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-labelledby="pick">
+      <p class="step" id="pick">Tasks</p>
+      <div class="section-row">
+        <select id="section" aria-label="Section"></select>
+        <div class="meter" id="meter" hidden>
+          <div class="bar"><div class="fill" id="meter-fill"></div></div>
+          <span id="meter-text"></span>
+        </div>
+      </div>
+      <p class="filter-note" id="filter-note" hidden>Showing <b id="filter-names"></b>.
+        <a href="index.html">Show every section</a></p>
+      <ul id="task-list" aria-label="Tasks"><li class="empty">Loading the task list…</li></ul>
+    </aside>
+
+    <main>
+      <section class="panel" aria-labelledby="title">
+        <h2 id="title"></h2>
+        <div id="description"></div>
+        <div id="editor"></div>
+        <div class="run-row">
+          <button type="button" id="run" title="Run your program (Ctrl + Enter)">▶ Run</button>
+          <button type="button" id="check" class="check" title="Run this task's tests on your program">✓ Check my code</button>
+          <span id="busy" role="status"></span>
+          <span class="spacer"></span>
+          <button type="button" class="secondary" id="copy">Copy my code</button>
+          <button type="button" class="secondary" id="startover">Start over</button>
+        </div>
+      </section>
+      <div id="notice" role="status"></div>
+
+      <section id="console-box" aria-labelledby="console-label" hidden>
+        <div class="label" id="console-label">What your program printed</div>
+        <pre id="console" aria-live="polite"></pre>
+      </section>
+
+      <div id="score" role="status"></div>
+      <div id="results"></div>
+    </main>
+  </div>
+
+  <footer>Your code and your ticks are saved in this browser, on this computer only.
+    <button type="button" class="link" id="reset">Clear my ticks</button></footer>
+
+  <script>
+    (function () {
+      var $ = function (id) { return document.getElementById(id); };
+      var sectionSelect = $("section"), taskList = $("task-list");
+      var meter = $("meter"), meterFill = $("meter-fill"), meterText = $("meter-text");
+      var titleEl = $("title"), descriptionEl = $("description"), editorHost = $("editor");
+      var runBtn = $("run"), checkBtn = $("check"), busyEl = $("busy");
+      var statusEl = $("status"), retryBtn = $("retry");
+      var noticeEl = $("notice"), scoreEl = $("score"), results = $("results");
+      var consoleBox = $("console-box"), consoleEl = $("console");
+
+      var ALL = "*";                 // the "All sections" choice
+      var OTHER = "Other tasks";     // the section for a task that has none
+      var PROGRESS_KEY = "pyMiniTasks.progress";
+      var SECTION_KEY = "pyMiniTasks.section";
+      var CODE_KEY = "pyMiniTasks.code";
+      var TASK_KEY = "pyMiniTasks.task";
+      var CATALOG_KEY = "pyMiniTasks.catalog";
+      var RUN_LIMIT = 20000;         // ms before a Run that hasn't answered is given up on
+      var CHECK_LIMIT = 45000;       // the same, for Check my code
+
+      // A place to try things out. It's always in the list, and nothing checks it.
+      var SCRATCH = {
+        key: "scratchpad", title: "Scratchpad", section: "", scratch: true, starter: "",
+        description: "Try out any Python here. Nothing is checked. Press **Run** to see what your program prints."
+      };
+
+      var params = new URLSearchParams(location.search);
+      var sectionParam = params.get("section");     // ?section=Variables: list only the matching section(s)
+
+      var tasks = [];          // every task in tasks/: { key, file, id, section, title, description, starter }
+      var loading = true;      // no task list yet (not even last visit's)
+      var onlySections = null; // the sections a ?section= link allows; null means every section
+      var section = ALL;
+      var selectedKey = SCRATCH.key;
+      var session = null;      // the program the Run button started: { code, inputs, seed }
+
+      function notice(msg) { noticeEl.textContent = msg || ""; }
+      function clearOutput() {
+        results.innerHTML = "";
+        scoreEl.textContent = "";
+        consoleBox.hidden = true;
+        consoleEl.innerHTML = "";
+        session = null;
+      }
+
+      // ------------------------------------------------------------------
+      // What this browser remembers: ticks, each task's code, the task list
+      // ------------------------------------------------------------------
+      function readStore(key, fallback) {
+        try { var v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
+        catch (e) { return fallback; }
+      }
+      function writeStore(key, value) {
+        try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* private window: nothing saved */ }
+      }
+      function objectFrom(key) {
+        var v = readStore(key, {});
+        return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+      }
+
+      // progress[task.key] = { done: passed every test at least once,
+      //                        best: most tests passed, total: tests in the task, last: when }
+      var progress = objectFrom(PROGRESS_KEY);
+      // codes[task.key] = the student's code for that task, once it differs from the starter
+      var codes = objectFrom(CODE_KEY);
+
+      function statusOf(task) {
+        if (task.scratch) return "scratch";
+        var p = progress[task.key];
+        return !p ? "new" : p.done ? "done" : "tried";
+      }
+
+      function record(task, passed, run) {
+        if (!run) return;
+        var p = progress[task.key] || {};
+        if (p.total !== run) { p.best = passed; p.total = run; } // the task changed: start again
+        else p.best = Math.max(p.best || 0, passed);
+        if (passed === run) p.done = true;
+        p.last = new Date().toISOString();
+        progress[task.key] = p;
+        writeStore(PROGRESS_KEY, progress);
+      }
+
+      // ------------------------------------------------------------------
+      // Which tasks are listed, and in which section
+      // ------------------------------------------------------------------
+      function sectionOf(task) { return task.section || OTHER; }
+      function listed() {
+        if (!onlySections) return tasks;
+        return tasks.filter(function (t) { return onlySections.indexOf(sectionOf(t)) >= 0; });
+      }
+      function sectionNames(list) {
+        var names = [];
+        list.forEach(function (t) { if (names.indexOf(sectionOf(t)) < 0) names.push(sectionOf(t)); });
+        return names;
+      }
+      function inSection(list, name) {
+        return name === ALL ? list : list.filter(function (t) { return sectionOf(t) === name; });
+      }
+      function doneIn(list) {
+        return list.filter(function (t) { return statusOf(t) === "done"; }).length;
+      }
+      function selected() {
+        if (selectedKey === SCRATCH.key) return SCRATCH;
+        for (var i = 0; i < tasks.length; i++) { if (tasks[i].key === selectedKey) return tasks[i]; }
+        return null;
+      }
+
+      // ------------------------------------------------------------------
+      // Drawing the task list
+      // ------------------------------------------------------------------
+      function render() {
+        var list = listed();
+        var names = sectionNames(list);
+        if (section !== ALL && names.indexOf(section) < 0) section = names.length > 1 ? ALL : (names[0] || ALL);
+
+        sectionSelect.innerHTML = "";
+        var counts = function (l) { return "  (" + doneIn(l) + " of " + l.length + " done)"; };
+        if (names.length > 1) addOption(ALL, "All sections" + counts(list));
+        names.forEach(function (n) { addOption(n, n + counts(inSection(list, n))); });
+        if (!names.length) addOption(ALL, loading ? "Loading…" : "No tasks");
+        sectionSelect.value = section;
+        sectionSelect.disabled = names.length < 2;
+        $("filter-note").hidden = !onlySections;
+
+        var shown = inSection(list, section);
+        meter.hidden = shown.length === 0;
+        if (!meter.hidden) {
+          var done = doneIn(shown);
+          meterFill.style.width = (done / shown.length * 100) + "%";
+          meterText.textContent = done + " of " + shown.length + " done";
+        }
+
+        taskList.innerHTML = "";
+        var first = document.createElement("li");
+        first.appendChild(taskButton(SCRATCH));
+        taskList.appendChild(first);
+        if (loading) taskList.appendChild(item("empty", "Loading the task list…"));
+        else if (shown.length === 0) taskList.appendChild(item("empty", "There are no tasks here yet."));
+        var lastSection = null;
+        shown.forEach(function (task) {
+          if (section === ALL && names.length > 1 && sectionOf(task) !== lastSection) {
+            lastSection = sectionOf(task);
+            taskList.appendChild(item("heading", lastSection));
+          }
+          var li = document.createElement("li");
+          li.appendChild(taskButton(task));
+          taskList.appendChild(li);
+        });
+      }
+
+      function addOption(value, text) {
+        var opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = text;
+        sectionSelect.appendChild(opt);
+      }
+
+      function item(className, text) {
+        var li = document.createElement("li");
+        li.className = className;
+        li.textContent = text;
+        return li;
+      }
+
+      function el(tag, className, text) {
+        var e = document.createElement(tag);
+        if (className) e.className = className;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+
+      function taskButton(task) {
+        var status = statusOf(task);
+        var p = progress[task.key];
+        var isSelected = task.key === selectedKey;
+        var b = el("button", "task " + status + (isSelected ? " selected" : ""));
+        b.type = "button";
+        b.setAttribute("aria-pressed", isSelected ? "true" : "false");
+        b.dataset.key = task.key;
+        var mark = el("span", "mark", status === "done" ? "✓" : status === "scratch" ? "✎" : "");
+        mark.setAttribute("aria-hidden", "true");
+        b.appendChild(mark);
+        b.appendChild(el("span", "tname", task.title));
+        if (status === "done") {
+          b.appendChild(el("span", "state", "Done"));
+          b.title = "Done: every test passed";
+        } else if (status === "tried") {
+          b.appendChild(el("span", "state", p.best + "/" + p.total));
+          b.title = "Best so far: " + p.best + " of " + p.total + " tests passed";
+        } else if (status === "new") {
+          b.title = "Not tried yet";
+        } else {
+          b.title = "Try out any Python";
+        }
+        return b;
+      }
+
+      // ------------------------------------------------------------------
+      // The chosen task: its description and its code
+      // ------------------------------------------------------------------
+      // A description is plain text with a little formatting: a blank line between
+      // paragraphs, lines indented 4 spaces for code or sample output, lines that
+      // start with "- " for a list, `code` and **bold**.
+      function renderDescription(text) {
+        descriptionEl.innerHTML = "";
+        String(text || "").split(/\n[ \t]*\n/).forEach(function (block) {
+          var lines = block.replace(/\s+$/, "").split("\n");
+          if (!block.trim()) return;
+          if (lines.every(function (l) { return /^ {4}/.test(l); })) {
+            var code = lines.map(function (l) { return l.slice(4); }).join("\n");
+            var prev = descriptionEl.lastChild;
+            if (prev && prev.tagName === "PRE") prev.textContent += "\n\n" + code;
+            else descriptionEl.appendChild(el("pre", "", code));
+          } else if (lines.every(function (l) { return /^\s*[-*] /.test(l); })) {
+            var ul = el("ul");
+            lines.forEach(function (l) { inline(ul.appendChild(el("li")), l.replace(/^\s*[-*] /, "")); });
+            descriptionEl.appendChild(ul);
+          } else {
+            inline(descriptionEl.appendChild(el("p")), lines.map(function (l) { return l.trim(); }).join(" "));
+          }
+        });
+      }
+
+      function inline(parent, text) {
+        var pattern = /`([^`]+)`|\*\*([^*]+)\*\*/g, last = 0, m;
+        while ((m = pattern.exec(text))) {
+          if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+          parent.appendChild(m[1] !== undefined ? el("code", "", m[1]) : el("strong", "", m[2]));
+          last = pattern.lastIndex;
+        }
+        if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+      }
+
+      function codeFor(task) {
+        return typeof codes[task.key] === "string" ? codes[task.key] : task.starter;
+      }
+
+      var saveTimer = null;
+      function saveCode() {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        var task = selected();
+        if (!task) return;
+        var text = editor.get();
+        if (text === task.starter) delete codes[task.key];
+        else codes[task.key] = text;
+        writeStore(CODE_KEY, codes);
+      }
+      var typedThisVisit = false;
+      function onEdit() {
+        typedThisVisit = true;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveCode, 400);
+      }
+
+      // Show the chosen task: title, description, and the student's code for it.
+      function showTask() {
+        var task = selected();
+        if (!task) { selectedKey = SCRATCH.key; task = SCRATCH; }
+        titleEl.textContent = task.title;
+        renderDescription(task.description);
+        editor.set(codeFor(task));
+        checkBtn.hidden = !!task.scratch;
+        $("startover").hidden = !!task.scratch;
+      }
+
+      function choose(key) {
+        if (key === selectedKey) return;
+        if (saveTimer) saveCode();
+        selectedKey = key;
+        writeStore(TASK_KEY, key);
+        clearOutput();
+        notice("");
+        showTask();
+        render();
+        rememberInUrl(selected());
+      }
+
+      // ------------------------------------------------------------------
+      // Links: index.html?task=Rectangle chooses a task, and
+      //        index.html?section=Variables lists only that section's tasks
+      // ------------------------------------------------------------------
+      function indexWhere(arr, test) {
+        for (var i = 0; i < arr.length; i++) { if (test(arr[i])) return i; }
+        return -1;
+      }
+
+      // Best match for a task from a link: its function name, then its title
+      // exactly, then a title that starts with the text, then one that contains it.
+      function findEntry(list, query) {
+        var q = String(query || "").trim().toLowerCase();
+        if (!q) return -1;
+        var names = list.map(function (t) { return t.title.toLowerCase(); });
+        var i = indexWhere(list, function (t) { return t.id.toLowerCase() === q; });
+        if (i < 0) i = names.indexOf(q);
+        if (i < 0) i = indexWhere(names, function (n) { return n.indexOf(q) === 0; });
+        if (i < 0) i = indexWhere(names, function (n) { return n.indexOf(q) >= 0; });
+        return i;
+      }
+
+      // The sections a ?section= link names, in list order. Several can be given,
+      // separated by commas, and each matches exactly, or else every section that
+      // starts with it, or else every section that contains it.
+      function matchSections(names, query) {
+        var lower = names.map(function (n) { return n.toLowerCase(); });
+        var found = [];
+        String(query).split(",").forEach(function (part) {
+          var q = part.trim().toLowerCase();
+          if (!q) return;
+          var hits = names.filter(function (n, i) { return lower[i] === q; });
+          if (!hits.length) hits = names.filter(function (n, i) { return lower[i].indexOf(q) === 0; });
+          if (!hits.length) hits = names.filter(function (n, i) { return lower[i].indexOf(q) >= 0; });
+          found = found.concat(hits);
+        });
+        return names.filter(function (n) { return found.indexOf(n) >= 0; });
+      }
+
+      function applyUrlSection() {
+        onlySections = null;
+        if (!sectionParam) return "";
+        var matched = matchSections(sectionNames(tasks), sectionParam);
+        if (!matched.length) {
+          return "This link asks for the section \"" + sectionParam + "\", which isn't in the list, so every section is shown.";
+        }
+        onlySections = matched;
+        $("filter-names").textContent = matched.length === 1 ? matched[0]
+          : matched.slice(0, -1).join(", ") + " and " + matched[matched.length - 1];
+        return "";
+      }
+
+      function linkText(s) {
+        return encodeURIComponent(s).replace(/%20/g, "+").replace(/%3A/gi, ":").replace(/%2C/gi, ",");
+      }
+
+      // Keep the address bar pointing at the chosen task (and the link's sections), so
+      // copying the address gives a link that opens the page on that task.
+      function rememberInUrl(task) {
+        var q = [];
+        if (onlySections) q.push("section=" + linkText(sectionParam));
+        if (task && !task.scratch) q.push("task=" + linkText(task.id));
+        try { history.replaceState(null, "", location.pathname + (q.length ? "?" + q.join("&") : "")); }
+        catch (e) { /* some browsers refuse this for local files; nothing lost */ }
+      }
+
+      // ------------------------------------------------------------------
+      // The task list arriving: last visit's copy at once, then the real one
+      // ------------------------------------------------------------------
+      var linkTaskDone = false;  // the link's ?task= has been dealt with
+      var linkNote = "";         // what to tell the student if the link's task can't be opened
+
+      // The key of the task a ?task= link asks for, or null. `live` is false for last
+      // visit's list, which may not have the task yet: then the real list decides.
+      function linkedTask(live) {
+        var want = params.get("task");
+        if (!want || linkTaskDone) return null;
+        var list = listed(), i = findEntry(list, want);
+        if (i < 0 && !live) return null;
+        linkTaskDone = true;
+        if (i >= 0) return list[i].key;
+        linkNote = findEntry(tasks, want) >= 0
+          ? "The task \"" + want + "\" is in a different section from the ones this link lists. Choose one from the list."
+          : "This link asks for a task called \"" + want + "\", which isn't in the list. Choose one from the list.";
+        return null;
+      }
+
+      // The task to open on: the link's, else the one open last time, else the first.
+      function pickTask(live) {
+        var list = listed();
+        var linked = linkedTask(live);
+        if (linked) return linked;
+        var saved = readStore(TASK_KEY, null);
+        if (saved === SCRATCH.key) return saved;
+        if (indexWhere(list, function (t) { return t.key === saved; }) >= 0) return saved;
+        return list.length ? list[0].key : SCRATCH.key;
+      }
+
+      // `live` is true for the list Python has just read from tasks/, and false for
+      // the copy this browser kept from the last visit.
+      function setTasks(list, problems, live) {
+        var firstList = loading;
+        var before = selected();
+        var untouched = before && editor.get() === before.starter;
+        tasks = Array.isArray(list) ? list : [];
+        loading = false;
+        var sectionNote = applyUrlSection();
+        var linked = firstList ? null : linkedTask(live);
+
+        if (firstList && !typedThisVisit) {
+          // The first list this visit: open the right task, unless the student is already typing.
+          selectedKey = pickTask(live);
+          showTask();
+        } else if (linked) {
+          if (saveTimer) saveCode();
+          selectedKey = linked;
+          clearOutput();
+          showTask();
+        } else if (!selected()) {
+          showTask(); // the open task has gone from the website: back to the scratchpad
+        } else if (!selected().scratch) {
+          // The same task, perhaps reworded. Its code is the student's, unless they hadn't touched it.
+          var now = selected();
+          titleEl.textContent = now.title;
+          renderDescription(now.description);
+          if (untouched && typeof codes[now.key] !== "string" && editor.get() !== now.starter) editor.set(now.starter);
+        }
+        notice([problems && problems.length ? "Couldn't load " + problems.join("; ") + "." : "", sectionNote, linkNote]
+          .filter(Boolean).join(" "));
+
+        var chosen = selected();
+        section = readStore(SECTION_KEY, ALL);
+        if (chosen && !chosen.scratch && section !== ALL && sectionOf(chosen) !== section) section = ALL;
+        render();
+        var button = taskList.querySelector(".task.selected");
+        if (button && firstList) {
+          // Bring the open task into view if it's further down the list than fits.
+          var below = button.getBoundingClientRect().bottom - taskList.getBoundingClientRect().bottom;
+          if (below > 0) taskList.scrollTop += below + 8;
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // The editor: CodeMirror when it loads, and a plain text box until then
+      // ------------------------------------------------------------------
+      // Both kinds give: get(), set(text), onChange(fn), markLine(number or null), focus(), hasFocus(), remove()
+      function plainEditor(host) {
+        var box = el("textarea", "plain-editor");
+        box.spellcheck = false;
+        box.setAttribute("autocapitalize", "off");
+        box.setAttribute("autocomplete", "off");
+        box.setAttribute("aria-label", "Your code");
+        host.appendChild(box);
+        var changed = function () {};
+        function insert(text) {
+          box.setRangeText(text, box.selectionStart, box.selectionEnd, "end");
+          changed();
+        }
+        box.addEventListener("input", function () { changed(); });
+        box.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runClicked(); }
+          else if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); insert("    "); }
+          else if (e.key === "Enter") {
+            // Start the new line at the same indent, or one step further in after a colon.
+            var before = box.value.slice(0, box.selectionStart);
+            var line = before.slice(before.lastIndexOf("\n") + 1);
+            var indent = /^ */.exec(line)[0] + (/:\s*$/.test(line) ? "    " : "");
+            e.preventDefault();
+            insert("\n" + indent);
+          }
+        });
+        return {
+          get: function () { return box.value; },
+          set: function (text) { box.value = text; },
+          onChange: function (fn) { changed = fn; },
+          markLine: function () {},
+          focus: function () { box.focus(); },
+          hasFocus: function () { return document.activeElement === box; },
+          remove: function () { box.remove(); }
+        };
+      }
+
+      function codeMirrorEditor(host) {
+        var changed = function () {}, quiet = false, marked = null;
+        var cm = window.CodeMirror(host, {
+          mode: { name: "python", version: 3 },
+          lineNumbers: true, indentUnit: 4, tabSize: 4, indentWithTabs: false,
+          matchBrackets: true, styleActiveLine: true, viewportMargin: Infinity,
+          extraKeys: {
+            // Tab indents with spaces, to the next multiple of 4.
+            "Tab": function (cm) {
+              if (cm.somethingSelected()) cm.indentSelection("add");
+              else cm.replaceSelection("    ".slice(cm.getCursor().ch % 4), "end");
+            },
+            "Shift-Tab": "indentLess",
+            // Backspace in the spaces at the start of a line removes one whole indent.
+            "Backspace": function (cm) {
+              var cur = cm.getCursor();
+              var before = cm.getLine(cur.line).slice(0, cur.ch);
+              if (cm.somethingSelected() || !/^ +$/.test(before)) return window.CodeMirror.Pass;
+              cm.replaceRange("", { line: cur.line, ch: cur.ch - (before.length % 4 || 4) }, cur);
+            },
+            "Ctrl-Enter": function () { runClicked(); },
+            "Cmd-Enter": function () { runClicked(); },
+            // Tab types spaces in here, so Esc is the way out for keyboard users.
+            "Esc": function () { runBtn.focus(); }
+          }
+        });
+        cm.getInputField().setAttribute("aria-label", "Your code");
+        function unmark() {
+          if (marked) { cm.removeLineClass(marked, "background", "error-line"); marked = null; }
+        }
+        cm.on("change", function () {
+          unmark();
+          if (!quiet) changed();
+        });
+        return {
+          get: function () { return cm.getValue(); },
+          set: function (text) { quiet = true; cm.setValue(text); cm.clearHistory(); quiet = false; },
+          onChange: function (fn) { changed = fn; },
+          markLine: function (n) {
+            unmark();
+            if (n && n >= 1 && n <= cm.lineCount()) marked = cm.addLineClass(n - 1, "background", "error-line");
+          },
+          focus: function () { cm.focus(); },
+          hasFocus: function () { return cm.hasFocus(); },
+          remove: function () { cm.getWrapperElement().remove(); }
+        };
+      }
+
+      function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement("script");
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = function () { reject(new Error(src)); };
+          document.head.appendChild(s);
+        });
+      }
+      function loadStyle(href) {
+        return new Promise(function (resolve, reject) {
+          var link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = href;
+          link.onload = resolve;
+          link.onerror = function () { reject(new Error(href)); };
+          document.head.appendChild(link);
+        });
+      }
+
+      var editor = plainEditor(editorHost);
+      editor.onChange(onEdit);
+
+      function upgradeEditor() {
+        var base = CODEMIRROR_URL;
+        var parts = ["mode/python/python.js", "addon/edit/matchbrackets.js", "addon/selection/active-line.js"];
+        Promise.all([
+          loadStyle(base + "lib/codemirror.css"),
+          loadScript(base + "lib/codemirror.js").then(function () {
+            return Promise.all(parts.map(function (p) { return loadScript(base + p); }));
+          })
+        ]).then(function () {
+          var text = editor.get(), focused = editor.hasFocus();
+          editor.remove();
+          editor = codeMirrorEditor(editorHost);
+          editor.set(text);
+          editor.onChange(onEdit);
+          if (focused) editor.focus();
+        }, function () {
+          // No colours, but the plain box works: typing, Tab, and indenting after a colon.
+          console.warn("The code editor (CodeMirror) couldn't load from " + base + ", so a plain text box is used.");
+        });
+      }
+
+      // ------------------------------------------------------------------
+      // Python: a web worker (py-worker.js) that is replaced if it gets stuck
+      // ------------------------------------------------------------------
+      var worker = null, ready = false, failed = false;
+      var waiting = [];     // [{ resolve, reject }] for requests made before Python was ready
+      var pending = null;   // the one request Python is working on: { id, resolve, reject, timer }
+      var lastId = 0;
+
+      function setStatus(kind, text) {
+        statusEl.className = "status" + (kind ? " " + kind : "");
+        statusEl.textContent = text;
+        retryBtn.hidden = kind !== "failed";
+      }
+
+      function startPython() {
+        ready = false;
+        failed = false;
+        setStatus("", "Starting Python…");
+        if (location.protocol === "file:") {
+          pythonFailed("This page was opened from a folder, so Python can't start here. Use the website, " +
+            "or teacher/Preview Site.cmd.");
+          return;
+        }
+        var w;
+        try { w = new Worker("py-worker.js", { type: "module" }); }
+        catch (e) { pythonFailed("This browser can't start Python (" + e.message + "). Try an up-to-date Chrome."); return; }
+        worker = w;
+        w.onmessage = function (e) {
+          if (w !== worker) return;
+          var m = e.data;
+          if (m.type === "ready") {
+            ready = true;
+            setStatus("ready", "Python " + m.python + " is ready");
+            writeStore(CATALOG_KEY, m.tasks);
+            setTasks(m.tasks, m.problems, true);
+            waiting.splice(0).forEach(function (p) { p.resolve(); });
+          } else if (m.type === "failed") {
+            pythonFailed(explainFailure(m.message));
+          } else if (m.type === "done" && pending && pending.id === m.id) {
+            var p = pending;
+            pending = null;
+            clearTimeout(p.timer);
+            if (m.crash) p.reject({ crash: m.crash }); else p.resolve(m.result);
+          }
+        };
+        w.onerror = function (e) {
+          if (w !== worker) return;
+          if (e.preventDefault) e.preventDefault();
+          pythonFailed(explainFailure(e.message || "py-worker.js could not load"));
+        };
+        w.postMessage({ cmd: "init", pyodideUrl: new URL(PYODIDE_URL, location.href).href });
+      }
+
+      function explainFailure(message) {
+        var host = new URL(PYODIDE_URL, location.href).host;
+        return "Python couldn't start (" + message + "). Check the internet connection, then press Try again. " +
+          (host !== location.host ? "If it keeps happening, tell your teacher: the network may be blocking " + host + "." : "");
+      }
+
+      function pythonFailed(message) {
+        ready = false;
+        failed = true;
+        if (worker) { worker.terminate(); worker = null; }
+        setStatus("failed", "Python isn't running");
+        notice(message);
+        waiting.splice(0).forEach(function (p) { p.reject({ failed: true }); });
+        if (pending) { clearTimeout(pending.timer); pending.reject({ failed: true }); pending = null; }
+        if (loading) { loading = false; render(); }
+      }
+
+      // Send Python one request. Resolves with its answer; rejects with { timeout },
+      // { crash } or { failed }. A request that takes too long means Python is stuck in
+      // something its own time limit couldn't stop, so the worker is replaced.
+      function ask(message, limit) {
+        var whenReady = ready ? Promise.resolve() : new Promise(function (resolve, reject) {
+          if (failed) reject({ failed: true });
+          else waiting.push({ resolve: resolve, reject: reject });
+        });
+        return whenReady.then(function () {
+          return new Promise(function (resolve, reject) {
+            message.id = ++lastId;
+            pending = { id: message.id, resolve: resolve, reject: reject };
+            pending.timer = setTimeout(function () {
+              pending = null;
+              worker.terminate();
+              startPython();
+              reject({ timeout: true });
+            }, limit);
+            worker.postMessage(message);
+          });
+        });
+      }
+
+      function setBusy(text) {
+        busyEl.textContent = text || "";
+        runBtn.disabled = checkBtn.disabled = !!text;
+      }
+
+      function showTrouble(why) {
+        setBusy("");
+        scoreEl.style.color = "var(--fail)";
+        if (why && why.timeout) {
+          scoreEl.textContent = "Python took too long, so it was stopped and restarted. A loop that never ends is the " +
+            "usual cause: check your loops, then try again.";
+        } else if (why && why.failed) {
+          scoreEl.textContent = "Python isn't running, so your code couldn't be run. See the message above.";
+        } else {
+          scoreEl.textContent = "Something went wrong inside the tester: " + (why && why.crash ? why.crash : why);
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // Run: the program runs, and what it prints is shown
+      // ------------------------------------------------------------------
+      // Python can't pause in the middle of a program to wait for typing, so input()
+      // works by running again: when the program asks for an answer nobody has given
+      // yet, it stops, the page asks the student, and the program is run from the top
+      // with every answer so far. The same seed each time keeps random's values the same.
+      function runClicked() {
+        if (runBtn.disabled) return;
+        saveCode();
+        clearOutput();
+        var code = editor.get();
+        if (!code.trim()) {
+          consoleBox.hidden = false;
+          consoleEl.appendChild(el("span", "note", "There's no code to run yet."));
+          return;
+        }
+        session = { code: code, inputs: [], seed: Math.floor(Math.random() * 1e9) };
+        runSession();
+      }
+
+      function runSession() {
+        var mine = session;
+        setBusy(ready ? "Running…" : "Waiting for Python to start…");
+        ask({ cmd: "run", code: mine.code, inputs: mine.inputs, seed: mine.seed }, RUN_LIMIT).then(function (res) {
+          setBusy("");
+          if (session === mine) showRun(res);
+        }, function (why) {
+          if (session === mine) showTrouble(why); else setBusy("");
+        });
+      }
+
+      function showRun(res) {
+        consoleBox.hidden = false;
+        consoleEl.innerHTML = "";
+        res.transcript.forEach(function (piece) {
+          if (piece[0] === "in") {
+            consoleEl.appendChild(el("span", "typed", piece[1]));
+            consoleEl.appendChild(document.createTextNode("\n"));
+          } else {
+            consoleEl.appendChild(document.createTextNode(piece[1]));
+          }
+        });
+        if (res.waiting) {
+          var box = el("input");
+          box.type = "text";
+          box.setAttribute("aria-label", "Type your answer, then press Enter");
+          box.setAttribute("autocomplete", "off");
+          box.addEventListener("keydown", function (e) {
+            if (e.key !== "Enter" || !session) return;
+            e.preventDefault();
+            box.disabled = true;
+            session.inputs.push(box.value);
+            runSession();
+          });
+          consoleEl.appendChild(box);
+          consoleEl.appendChild(el("span", "note", "  ← type your answer, then press Enter"));
+          box.focus();
+        } else if (res.error) {
+          consoleEl.appendChild(el("span", "error", res.error));
+          editor.markLine(res.errorLine);
+        } else if (!res.transcript.length) {
+          consoleEl.appendChild(el("span", "note", "Your program ran, and printed nothing."));
+        }
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+      }
+
+      // ------------------------------------------------------------------
+      // Check my code: the task's tests run, and each one passes or fails
+      // ------------------------------------------------------------------
+      function checkClicked() {
+        var task = selected();
+        if (!task || task.scratch || checkBtn.disabled) return;
+        saveCode();
+        clearOutput();
+        setBusy(ready ? "Checking…" : "Waiting for Python to start…");
+        ask({ cmd: "check", key: task.key, code: editor.get() }, CHECK_LIMIT).then(function (res) {
+          setBusy("");
+          if (selected() !== task) return;
+          if (res.missing) {
+            scoreEl.style.color = "var(--fail)";
+            scoreEl.textContent = "This task isn't on the website any more. Reload the page.";
+            return;
+          }
+          showResults(res.results);
+          record(task, res.results.filter(function (r) { return r.passed; }).length, res.results.length);
+          render();
+        }, showTrouble);
+      }
+
+      function showResults(list) {
+        results.innerHTML = "";
+        var seen = [];  // failure messages already shown: one broken line often fails every test the same way
+        list.forEach(function (r) {
+          var div = el("div", "result " + (r.passed ? "pass" : "fail"));
+          div.appendChild(el("div", "name", (r.passed ? "PASS" : "FAIL") + " — " + r.name));
+          var repeat = !r.passed && r.message.length > 60 && seen.indexOf(r.message) >= 0;
+          if (r.message) div.appendChild(el("div", "msg", repeat ? "The same problem as above." : r.message));
+          if (!r.passed) seen.push(r.message);
+          results.appendChild(div);
+        });
+        var passed = list.filter(function (r) { return r.passed; }).length;
+        var all = list.length > 0 && passed === list.length;
+        scoreEl.textContent = !list.length ? "This task has no tests yet."
+          : "Score: " + passed + "/" + list.length + " tests passed (" + (passed / list.length * 100).toFixed(0) + "%)" +
+            (all ? " - task done ✓" : "");
+        scoreEl.style.color = all ? "var(--pass)" : "var(--fail)";
+      }
+
+      // ------------------------------------------------------------------
+      // Events
+      // ------------------------------------------------------------------
+      taskList.addEventListener("click", function (e) {
+        var b = e.target.closest ? e.target.closest(".task") : null;
+        if (b) choose(b.dataset.key);
+      });
+
+      sectionSelect.addEventListener("change", function () {
+        section = sectionSelect.value;
+        writeStore(SECTION_KEY, section);
+        render();
+      });
+
+      runBtn.addEventListener("click", runClicked);
+      checkBtn.addEventListener("click", checkClicked);
+      retryBtn.addEventListener("click", function () { notice(""); startPython(); });
+
+      $("startover").addEventListener("click", function () {
+        var task = selected();
+        if (!task || editor.get() === task.starter) return;
+        if (!confirm("Replace your code with the code this task started with? What you've typed will be lost.")) return;
+        editor.set(task.starter);
+        saveCode();
+        clearOutput();
+        editor.focus();
+      });
+
+      $("copy").addEventListener("click", function () {
+        var button = this, text = editor.get();
+        var done = function (ok) {
+          button.textContent = ok ? "Copied ✓" : "Couldn't copy";
+          setTimeout(function () { button.textContent = "Copy my code"; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+        } else {
+          done(false);
+        }
+      });
+
+      $("reset").addEventListener("click", function () {
+        if (!confirm("Clear the ticks for every task in this browser? Your code stays.")) return;
+        progress = {};
+        writeStore(PROGRESS_KEY, progress);
+        render();
+      });
+
+      // Typing is saved a moment after it stops; leaving the page saves at once.
+      window.addEventListener("pagehide", function () { if (saveTimer) saveCode(); });
+      document.addEventListener("visibilitychange", function () { if (document.hidden && saveTimer) saveCode(); });
+
+      // ------------------------------------------------------------------
+      // Start: last visit's task list straight away, then the editor and Python
+      // ------------------------------------------------------------------
+      showTask();
+      render();
+      var remembered = readStore(CATALOG_KEY, null);
+      if (Array.isArray(remembered) && remembered.length) setTasks(remembered, null, false);
+      upgradeEditor();
+      startPython();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Model solutions and the teacher's tools run on this computer only - never publish these.
+teacher/
+
+# Python's cache
+__pycache__/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
