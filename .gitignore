@@ -7,3 +7,6 @@ __pycache__/
 # OS / editor noise
 .DS_Store
 Thumbs.db
+
+# Planning notes: they name the checkpoint and test questions, so keep them off the website.
+outline.md

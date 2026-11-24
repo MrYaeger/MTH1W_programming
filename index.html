@@ -21,6 +21,7 @@
     --mono: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { font-family: system-ui, Arial, sans-serif; max-width: 1240px; margin: 16px auto; padding: 0 16px 40px;
          color: var(--ink); background: #fff; line-height: 1.45; }
   h1 { font-size: 1.4em; margin: 0; }
@@ -75,11 +76,40 @@
   .task.done .state { color: var(--pass); font-weight: 650; }
   .task.tried .state { color: var(--tried); font-weight: 650; }
 
+  /* how hard a task is: Learn (a lesson step), then Mild, Medium, Hot and Spicy */
+  .level { flex: none; font-size: 0.72em; font-weight: 650; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  .level.learn { background: #e3ecff; color: #2f4fb3; }
+  .level.mild { background: #e3f5e8; color: #237a3e; }
+  .level.medium { background: #fff1cc; color: #8a5a00; }
+  .level.hot { background: #ffe2cc; color: #a4480a; }
+  .level.spicy { background: #fdd9d9; color: #b02525; }
+  .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 6px; }
+  .title-row h2 { margin: 0; }
+  .title-row .level { font-size: 0.8em; }
+
   /* the task, the editor and the buttons */
   #description p { margin: 0 0 8px; }
   #description ul { margin: 0 0 8px; padding-left: 22px; }
-  #description pre { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 8px;
+  #description pre, #predict pre { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 8px;
                      font-family: var(--mono); font-size: 0.92em; white-space: pre-wrap; }
+  /* ```output blocks look like the box under Run, so students see them as "what it prints" */
+  #description pre.output { background: #1f2330; color: #e8eaf2; border-color: #1f2330; }
+  pre.code .cm-keyword { font-weight: 600; }
+
+  /* a Predict task: programs to read, with a box for each answer */
+  #predict { margin-top: 10px; display: grid; gap: 14px; }
+  .question { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .question .qlabel { font-weight: 650; font-size: 0.8em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .question pre { margin-bottom: 10px !important; background: #f8f9fc !important; }
+  .answer-row { margin-top: 8px; }
+  .answer-row label { display: block; font-size: 0.92em; font-weight: 600; margin-bottom: 4px; }
+  .answer-row .box { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .answer-row textarea { flex: 1 1 260px; min-height: 3.2em; resize: vertical; border: 1px solid #c4c8d4; border-radius: 6px;
+                         padding: 6px 10px; font-family: var(--mono); font-size: 15px; line-height: 1.45; }
+  .answer-row.right textarea { border: 2px solid var(--pass); background: var(--pass-soft); }
+  .answer-row.wrong textarea { border: 2px solid var(--fail); background: var(--fail-soft); }
+  .answer-row .run-it { display: none; }
+  #predict.checked .answer-row .run-it { display: inline-block; }
   #editor { margin-top: 10px; }
   #editor .CodeMirror { height: auto; border: 1px solid #c4c8d4; border-radius: 6px; font-family: var(--mono); font-size: 15px; line-height: 1.5; }
   #editor .CodeMirror-scroll { min-height: 190px; }
@@ -101,6 +131,7 @@
   #console .typed { color: #8fd3ff; font-weight: 600; }
   #console .note { color: #9aa1b5; font-style: italic; }
   #console .error { color: #ffb4b4; display: block; margin-top: 6px; }
+  #console .warn { color: #ffd479; display: block; margin-top: 6px; }
   #console input { font-family: var(--mono); font-size: inherit; background: #2c3144; color: #8fd3ff; border: 1px solid #5d6475;
                    border-radius: 4px; padding: 2px 6px; width: min(22em, 70%); }
   #console input:focus { outline: 2px solid #8fd3ff; }
@@ -144,9 +175,10 @@
 
     <main>
       <section class="panel" aria-labelledby="title">
-        <h2 id="title"></h2>
+        <div class="title-row"><h2 id="title"></h2><span id="level" class="level" hidden></span></div>
         <div id="description"></div>
         <div id="editor"></div>
+        <div id="predict" hidden></div>
         <div class="run-row">
           <button type="button" id="run" title="Run your program (Ctrl + Enter)">▶ Run</button>
           <button type="button" id="check" class="check" title="Run this task's tests on your program">✓ Check my code</button>
@@ -181,6 +213,14 @@
       var statusEl = $("status"), retryBtn = $("retry");
       var noticeEl = $("notice"), scoreEl = $("score"), results = $("results");
       var consoleBox = $("console-box"), consoleEl = $("console");
+      var levelEl = $("level"), predictBox = $("predict");
+
+      var LEVEL_NAMES = { learn: "Learn", mild: "Mild", medium: "Medium", hot: "Hot", spicy: "Spicy" };
+      var LEVEL_TIPS = {
+        learn: "A lesson step: do these in order",
+        mild: "Mild: practice (levels 1-2)", medium: "Medium: practice (level 3)",
+        hot: "Hot: a challenge (level 4)", spicy: "Spicy: beyond level 4"
+      };
 
       var ALL = "*";                 // the "All sections" choice
       var OTHER = "Other tasks";     // the section for a task that has none
@@ -356,6 +396,7 @@
         mark.setAttribute("aria-hidden", "true");
         b.appendChild(mark);
         b.appendChild(el("span", "tname", task.title));
+        if (LEVEL_NAMES[task.level]) b.appendChild(el("span", "level " + task.level, LEVEL_NAMES[task.level]));
         if (status === "done") {
           b.appendChild(el("span", "state", "Done"));
           b.title = "Done: every test passed";
@@ -374,26 +415,60 @@
       // The chosen task: its description and its code
       // ------------------------------------------------------------------
       // A description is plain text with a little formatting: a blank line between
-      // paragraphs, lines indented 4 spaces for code or sample output, lines that
-      // start with "- " for a list, `code` and **bold**.
+      // paragraphs, lines that start with "- " for a list, `code` and **bold**, and
+      // blocks fenced with ``` lines: ```python for code (in colour), and ```output
+      // (or a plain ```) for what a program prints. Lines indented 4 spaces are a
+      // plain block too.
       function renderDescription(text) {
         descriptionEl.innerHTML = "";
-        String(text || "").split(/\n[ \t]*\n/).forEach(function (block) {
-          var lines = block.replace(/\s+$/, "").split("\n");
-          if (!block.trim()) return;
-          if (lines.every(function (l) { return /^ {4}/.test(l); })) {
-            var code = lines.map(function (l) { return l.slice(4); }).join("\n");
-            var prev = descriptionEl.lastChild;
-            if (prev && prev.tagName === "PRE") prev.textContent += "\n\n" + code;
-            else descriptionEl.appendChild(el("pre", "", code));
-          } else if (lines.every(function (l) { return /^\s*[-*] /.test(l); })) {
+        var lines = String(text || "").split("\n"), i = 0, para = [];
+        function endParagraph() {
+          if (para.length) inline(descriptionEl.appendChild(el("p")), para.join(" "));
+          para = [];
+        }
+        while (i < lines.length) {
+          var line = lines[i], fence = /^\s*```\s*(\w*)\s*$/.exec(line);
+          if (fence) {
+            endParagraph();
+            var body = [];
+            for (i++; i < lines.length && !/^\s*```\s*$/.test(lines[i]); i++) body.push(lines[i]);
+            i++;
+            var kind = fence[1].toLowerCase();
+            descriptionEl.appendChild(kind === "python" || kind === "py" ? codeBlock(body.join("\n"))
+              : el("pre", "output", body.join("\n")));
+          } else if (!line.trim()) {
+            endParagraph();
+            i++;
+          } else if (/^ {4}/.test(line) && !para.length) {
+            var block = [];
+            while (i < lines.length && (/^ {4}/.test(lines[i]) || (!lines[i].trim() && /^ {4}/.test(lines[i + 1] || "")))) {
+              block.push(lines[i++].slice(4));
+            }
+            descriptionEl.appendChild(el("pre", "", block.join("\n")));
+          } else if (/^\s*[-*] /.test(line)) {
+            endParagraph();
             var ul = el("ul");
-            lines.forEach(function (l) { inline(ul.appendChild(el("li")), l.replace(/^\s*[-*] /, "")); });
+            while (i < lines.length && /^\s*[-*] /.test(lines[i])) inline(ul.appendChild(el("li")), lines[i++].replace(/^\s*[-*] /, ""));
             descriptionEl.appendChild(ul);
           } else {
-            inline(descriptionEl.appendChild(el("p")), lines.map(function (l) { return l.trim(); }).join(" "));
+            para.push(line.trim());
+            i++;
           }
-        });
+        }
+        endParagraph();
+      }
+
+      // A block of Python, coloured like the editor once CodeMirror has loaded.
+      function codeBlock(code) {
+        var pre = el("pre", "code cm-s-default", code);
+        pre.dataset.code = code;
+        colour(pre);
+        return pre;
+      }
+      function colour(pre) {
+        if (!window.CodeMirror || !window.CodeMirror.runMode) return;
+        try { window.CodeMirror.runMode(pre.dataset.code, { name: "python", version: 3 }, pre); }
+        catch (e) { pre.textContent = pre.dataset.code; }
       }
 
       function inline(parent, text) {
@@ -410,12 +485,81 @@
         return typeof codes[task.key] === "string" ? codes[task.key] : task.starter;
       }
 
+      // A Predict task shows programs to read instead of the editor, and keeps one
+      // answer per run: codes[task.key] is then a list of strings.
+      function isPredict(task) { return !!(task && task.predict); }
+      function answersFor(task) { return Array.isArray(codes[task.key]) ? codes[task.key] : []; }
+      function currentAnswers() {
+        return Array.prototype.map.call(predictBox.querySelectorAll("textarea"), function (a) { return a.value; });
+      }
+      function saveAnswers() {
+        var task = selected();
+        if (!isPredict(task)) return;
+        var list = currentAnswers();
+        if (list.every(function (a) { return !a.trim(); })) delete codes[task.key];
+        else codes[task.key] = list;
+        writeStore(CODE_KEY, codes);
+      }
+
+      var predictShown = "";   // the questions on the page now, to tell whether a new task list changed them
+      function showPredict(task) {
+        predictBox.innerHTML = "";
+        predictBox.classList.toggle("checked", !!progress[task.key]);
+        predictShown = JSON.stringify(task.predict);
+        var saved = answersFor(task), k = 0;
+        task.predict.forEach(function (q, qi) {
+          var box = el("div", "question");
+          if (task.predict.length > 1) box.appendChild(el("div", "qlabel", "Program " + (qi + 1)));
+          box.appendChild(codeBlock(q.code.replace(/\n+$/, "")));
+          q.runs.forEach(function (inputs) {
+            var index = k++;
+            var row = el("div", "answer-row");
+            var label = el("label", "", inputs.length
+              ? "If you type " + inputs.join(", then ") + ", what does it print?" : "What does it print?");
+            label.htmlFor = "answer-" + index;
+            var area = el("textarea");
+            area.id = "answer-" + index;
+            area.rows = 2;
+            area.spellcheck = false;
+            area.setAttribute("autocapitalize", "off");
+            area.setAttribute("autocomplete", "off");
+            area.value = typeof saved[index] === "string" ? saved[index] : "";
+            area.addEventListener("input", function () {
+              row.classList.remove("right", "wrong");
+              typedThisVisit = true;
+              saveAnswers();
+            });
+            // Shown once the task has been checked: a wrong prediction is easier to
+            // understand after seeing what the program really does.
+            var runIt = el("button", "secondary run-it", "▶ Run it");
+            runIt.type = "button";
+            runIt.title = "Run this program and see what it really prints";
+            runIt.addEventListener("click", function () { runProgram(q.code, inputs); });
+            var line = el("div", "box");
+            line.appendChild(area);
+            line.appendChild(runIt);
+            row.appendChild(label);
+            row.appendChild(line);
+            box.appendChild(row);
+          });
+          predictBox.appendChild(box);
+        });
+      }
+
+      // After a check, colour each answer box: its test is the one in the same place.
+      function markAnswers(list) {
+        Array.prototype.forEach.call(predictBox.querySelectorAll(".answer-row"), function (row, i) {
+          row.classList.remove("right", "wrong");
+          if (list[i]) row.classList.add(list[i].passed ? "right" : "wrong");
+        });
+      }
+
       var saveTimer = null;
       function saveCode() {
         clearTimeout(saveTimer);
         saveTimer = null;
         var task = selected();
-        if (!task) return;
+        if (!task || isPredict(task)) return;
         var text = editor.get();
         if (text === task.starter) delete codes[task.key];
         else codes[task.key] = text;
@@ -428,15 +572,41 @@
         saveTimer = setTimeout(saveCode, 400);
       }
 
-      // Show the chosen task: title, description, and the student's code for it.
+      function showHeading(task) {
+        titleEl.textContent = task.title;
+        levelEl.hidden = !LEVEL_NAMES[task.level];
+        if (!levelEl.hidden) {
+          levelEl.className = "level " + task.level;
+          levelEl.textContent = LEVEL_NAMES[task.level];
+          levelEl.title = LEVEL_TIPS[task.level];
+        }
+        renderDescription(task.description);
+      }
+
+      // Show the chosen task: title, description, and the student's code for it
+      // (or, for a Predict task, its programs and the student's answers).
       function showTask() {
         var task = selected();
         if (!task) { selectedKey = SCRATCH.key; task = SCRATCH; }
-        titleEl.textContent = task.title;
-        renderDescription(task.description);
-        editor.set(codeFor(task));
+        var predict = isPredict(task);
+        showHeading(task);
+        editorHost.hidden = predict;
+        predictBox.hidden = !predict;
+        if (predict) {
+          editor.set("");
+          showPredict(task);
+        } else {
+          predictBox.innerHTML = "";
+          predictShown = "";
+          editor.set(codeFor(task));
+          editor.refresh();
+        }
+        runBtn.hidden = predict;
+        $("copy").hidden = predict;
+        checkBtn.textContent = predict ? "✓ Check my answers" : "✓ Check my code";
         checkBtn.hidden = !!task.scratch;
         $("startover").hidden = !!task.scratch;
+        $("console-label").textContent = predict ? "What this program printed" : "What your program printed";
       }
 
       function choose(key) {
@@ -574,9 +744,16 @@
         } else if (!selected().scratch) {
           // The same task, perhaps reworded. Its code is the student's, unless they hadn't touched it.
           var now = selected();
-          titleEl.textContent = now.title;
-          renderDescription(now.description);
-          if (untouched && typeof codes[now.key] !== "string" && editor.get() !== now.starter) editor.set(now.starter);
+          if (isPredict(now) !== !predictBox.hidden) {
+            showTask(); // it has become a Predict task, or stopped being one
+          } else {
+            showHeading(now);
+            if (isPredict(now)) {
+              if (JSON.stringify(now.predict) !== predictShown) showPredict(now);
+            } else if (untouched && typeof codes[now.key] !== "string" && editor.get() !== now.starter) {
+              editor.set(now.starter);
+            }
+          }
         }
         notice([problems && problems.length ? "Couldn't load " + problems.join("; ") + "." : "", sectionNote, linkNote]
           .filter(Boolean).join(" "));
@@ -596,7 +773,8 @@
       // ------------------------------------------------------------------
       // The editor: CodeMirror when it loads, and a plain text box until then
       // ------------------------------------------------------------------
-      // Both kinds give: get(), set(text), onChange(fn), markLine(number or null), focus(), hasFocus(), remove()
+      // Both kinds give: get(), set(text), onChange(fn), markLine(number or null), focus(), hasFocus(),
+      // refresh() (after the editor has been hidden), remove()
       function plainEditor(host) {
         var box = el("textarea", "plain-editor");
         box.spellcheck = false;
@@ -629,6 +807,7 @@
           markLine: function () {},
           focus: function () { box.focus(); },
           hasFocus: function () { return document.activeElement === box; },
+          refresh: function () {},
           remove: function () { box.remove(); }
         };
       }
@@ -677,6 +856,7 @@
           },
           focus: function () { cm.focus(); },
           hasFocus: function () { return cm.hasFocus(); },
+          refresh: function () { cm.refresh(); },
           remove: function () { cm.getWrapperElement().remove(); }
         };
       }
@@ -706,7 +886,8 @@
 
       function upgradeEditor() {
         var base = CODEMIRROR_URL;
-        var parts = ["mode/python/python.js", "addon/edit/matchbrackets.js", "addon/selection/active-line.js"];
+        var parts = ["mode/python/python.js", "addon/edit/matchbrackets.js", "addon/selection/active-line.js",
+                     "addon/runmode/runmode.js"];
         Promise.all([
           loadStyle(base + "lib/codemirror.css"),
           loadScript(base + "lib/codemirror.js").then(function () {
@@ -719,6 +900,7 @@
           editor.set(text);
           editor.onChange(onEdit);
           if (focused) editor.focus();
+          Array.prototype.forEach.call(document.querySelectorAll("pre.code"), colour);
         }, function () {
           // No colours, but the plain box works: typing, Tab, and indenting after a colon.
           console.warn("The code editor (CodeMirror) couldn't load from " + base + ", so a plain text box is used.");
@@ -844,7 +1026,7 @@
       // yet, it stops, the page asks the student, and the program is run from the top
       // with every answer so far. The same seed each time keeps random's values the same.
       function runClicked() {
-        if (runBtn.disabled) return;
+        if (runBtn.disabled || isPredict(selected())) return;
         saveCode();
         clearOutput();
         var code = editor.get();
@@ -855,6 +1037,17 @@
         }
         session = { code: code, inputs: [], seed: Math.floor(Math.random() * 1e9) };
         runSession();
+      }
+
+      // A Predict task's "Run it": run one of its programs, typing the given answers.
+      // The test results stay on the page.
+      function runProgram(code, inputs) {
+        if (checkBtn.disabled) return;
+        consoleBox.hidden = false;
+        consoleEl.innerHTML = "";
+        session = { code: code, inputs: inputs.slice(), seed: Math.floor(Math.random() * 1e9) };
+        runSession();
+        consoleBox.scrollIntoView({ block: "nearest" });
       }
 
       function runSession() {
@@ -900,6 +1093,10 @@
         } else if (!res.transcript.length) {
           consoleEl.appendChild(el("span", "note", "Your program ran, and printed nothing."));
         }
+        if (!res.waiting) {
+          // Code that runs but probably isn't what was meant, like ^ for a power.
+          (res.notes || []).forEach(function (n) { consoleEl.appendChild(el("span", "warn", n)); });
+        }
         consoleEl.scrollTop = consoleEl.scrollHeight;
       }
 
@@ -909,10 +1106,12 @@
       function checkClicked() {
         var task = selected();
         if (!task || task.scratch || checkBtn.disabled) return;
-        saveCode();
+        var predict = isPredict(task);
+        if (predict) saveAnswers(); else saveCode();
         clearOutput();
         setBusy(ready ? "Checking…" : "Waiting for Python to start…");
-        ask({ cmd: "check", key: task.key, code: editor.get() }, CHECK_LIMIT).then(function (res) {
+        var code = predict ? JSON.stringify(currentAnswers()) : editor.get();
+        ask({ cmd: "check", key: task.key, code: code }, CHECK_LIMIT).then(function (res) {
           setBusy("");
           if (selected() !== task) return;
           if (res.missing) {
@@ -921,6 +1120,10 @@
             return;
           }
           showResults(res.results);
+          if (predict) {
+            markAnswers(res.results);
+            predictBox.classList.add("checked");
+          }
           record(task, res.results.filter(function (r) { return r.passed; }).length, res.results.length);
           render();
         }, showTrouble);
@@ -965,6 +1168,15 @@
 
       $("startover").addEventListener("click", function () {
         var task = selected();
+        if (isPredict(task)) {
+          if (currentAnswers().every(function (a) { return !a.trim(); })) return;
+          if (!confirm("Clear all your answers for this task?")) return;
+          delete codes[task.key];
+          writeStore(CODE_KEY, codes);
+          showPredict(task);
+          clearOutput();
+          return;
+        }
         if (!task || editor.get() === task.starter) return;
         if (!confirm("Replace your code with the code this task started with? What you've typed will be lost.")) return;
         editor.set(task.starter);

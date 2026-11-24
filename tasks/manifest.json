@@ -2,7 +2,7 @@
   "01_getting_started.py",
   "02_variables.py",
   "03_input.py",
-  "04_decisions.py",
-  "05_loops.py",
-  "06_functions.py"
+  "04_functions.py",
+  "05_decisions.py",
+  "06_loops.py"
 ]

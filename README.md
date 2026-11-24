@@ -15,6 +15,10 @@ Mini Task tester, and is published the same way: as a GitHub Pages site.
   for each answer under the output. Ctrl + Enter also runs.
 - **Check my code** runs the task's tests and lists each one as PASS or FAIL, with
   a reason for each failure.
+- **Predict** tasks show programs to read instead of an editor, with a box under
+  each for what it prints.
+- Each task is labelled **Learn** (a lesson step) or **Mild**, **Medium**, **Hot**
+  or **Spicy** (practice).
 - **Scratchpad**, at the top of the list, is a blank program that nothing checks.
 - **Copy my code** copies the program, to paste into a D2L submission or a document.
 
@@ -34,9 +38,9 @@ They are not sent anywhere, and they don't follow a student to another device.
 
 ## Writing a task
 
-A task is a Python function in a file in `tasks/`. The decorator gives it a title
-and starter code, the docstring is the description students read, and the body is
-the tests.
+A task is a Python function in a file in `tasks/`. The decorator gives it a title,
+a level and starter code, the docstring is the description students read, and the
+body is the tests.
 
 ```python
 section("2. Variables")
@@ -50,20 +54,23 @@ print("Area:", area)
 """
 
 
-@task("Rectangle", starter=RECTANGLE)
+@task("Rectangle", level="mild", starter=RECTANGLE)
 def rectangle(t):
     """
     Add to the program, so that it also works out the perimeter, stores it in
     a variable called `perimeter`, and prints it:
 
-        Area: 40
-        Perimeter: 26
+    ```output
+    Area: 40
+    Perimeter: 26
+    ```
     """
     r = t.run()
     t.test("prints the area and the perimeter", r.check_output(["Area: 40", "Perimeter: 26"]))
     t.test("has a variable called perimeter", r.check_var("perimeter", 26))
     r = t.run(length=10, width=2.5)
-    t.test("works for other rectangles", r.check_output(["Area: 25", "Perimeter: 25"]))
+    t.test("works for other rectangles", r.check_output(["Area: 25", "Perimeter: 25"]),
+           hint="Work the perimeter out from length and width, so that it changes when they change.")
 ```
 
 To add a file of tasks: put it in `tasks/`, add its name to `tasks/manifest.json`,
@@ -71,11 +78,49 @@ and put a model solution for each task in `teacher/solutions/` (see Checking).
 
 - `section("...")` names the section for the tasks below it. Without it, the
   section is named after the file (`03_input.py` becomes "Input").
+- `level=` is `"learn"` (a lesson step, done in order), or `"mild"`, `"medium"`,
+  `"hot"` or `"spicy"` (practice, matching levels 1-2, 3, 4, and beyond). It shows
+  as a coloured label beside the task.
 - The function's name identifies the task: in links, in the solutions folder, and
   for students' saved code and ticks. Renaming it starts those afresh. The title
   can change freely.
-- In a description, leave a blank line between paragraphs, indent code or sample
-  output by 4 spaces, start list lines with `- `, and use `` `code` `` and `**bold**`.
+- In a description, leave a blank line between paragraphs, start list lines with
+  `- `, and use `` `code` `` and `**bold**`. Fence Python with ```` ```python ````
+  (shown in colour) and what a program prints with ```` ```output ```` (shown like
+  the dark box under Run).
+
+### Predict tasks
+
+A Predict task shows programs instead of an editor. Students type what each one
+prints, and the answers are checked by running the programs, so the test function
+needs nothing but the description.
+
+```python
+@task("Predict: If and Else", level="medium", predict=[
+    question("print(2 + 3 * 4)"),
+    question(AGE_PROGRAM, 16, 15),                  # run twice: typing 16, then typing 15
+    question(COMPARE_PROGRAM, [3, 8], [7, 7]),      # two answers typed on each run
+    question("print(10 / 4)", hint="Dividing gives an answer with a decimal point."),
+])
+def predict_if_else(t):
+    """Read each program and work out what it prints."""
+```
+
+Each run gets its own answer box. A wrong answer is told which line is wrong (and
+the `hint`), but not the right answer. Answers are compared the way output is (see
+below), so `2.5` matches `2.50`. After a student has checked once, a **Run it**
+button under each program shows what it really prints.
+
+### Alter, Fix and Order tasks
+
+These start from code that's already written. A Fix task needs nothing special:
+the starter code is broken, and the tests check the output. For the others:
+
+| Call | Passes when |
+| --- | --- |
+| `t.check_changed(1)` | At most 1 line differs from the starter code (and at least one does). |
+| `t.check_only_added("()")` | The code is the starter code with only brackets added. |
+| `t.check_same_lines()` | The code uses exactly the starter's lines, in any order and indentation (for putting scrambled lines in order). |
 
 ### What `t` can do
 
@@ -87,9 +132,11 @@ and put a model solution for each task in `teacher/solutions/` (see Checking).
 | `t.run(seed=1)` | Makes `random` give the same values every time. |
 | `t.test(name, result)` | Records one test. `result` is `True`/`False`, or what a check below returns. |
 | `t.test(name, passed, message)` | The same, with your own message for the student. |
+| `t.test(name, result, hint="...")` | Adds a hint to the message if the test fails because the answer is wrong. |
+| `t.test(name, result, error_hint="...")` | Adds a hint if it fails because the program stopped early (an error, the time limit, or asking for the wrong number of inputs). |
 | `t.uses("for", "**")` | Is every one of these words or symbols in the code? Comments and text in quotes don't count. |
 | `t.count("print")` | How many times a word or symbol is in the code. |
-| `t.code` | The student's code, as text. |
+| `t.code`, `t.starter` | The student's code, and the task's starter code, as text. |
 
 ### What `r` (a run) can do
 
@@ -99,21 +146,35 @@ message is the error, with the line number and a hint.
 
 | Call | Passes when |
 | --- | --- |
-| `r.check_output(["Area: 40", "Perimeter: 26"])` | The program printed exactly these lines. |
-| `r.check_prints(26, "perimeter")` | Each value was printed somewhere. Other printing is allowed, and capitals don't matter. |
+| `r.check_output(["Area: 40", "Perimeter: 26"])` | The program printed these lines, and nothing else. |
+| `r.check_prints(26, "perimeter")` | Each value was printed somewhere. Other printing is allowed. |
 | `r.check_var("perimeter", 26)` | The program has that variable, with that value. Leave the value out to check only that it exists. |
 | `r.check_returns("area", (8, 5), 40)` | The student's function `area(8, 5)` gives back 40. |
 | `r.ok` | The program ran to the end without an error. |
 
-Numbers are compared by value, so `20` matches `20.0` and `0.30000000000000004`
-matches `0.3`. This suits a math class: `float(input())` answers print with a
-decimal point. Add `exact=True` to `check_output` when the form matters. Rounding
-does matter either way: an expected `3.61` is not matched by `3.605551275463989`.
+Output is compared leniently: capitals and spaces don't matter, and numbers are
+compared by value, so `20` matches `20.0` and `0.30000000000000004` matches `0.3`.
+This suits a math class: `float(input())` answers print with a decimal point, and
+`print("Hello,", name, "!")` prints `Hello, Sam !`. Add `exact=True` to
+`check_output` when the exact form matters. Rounding does matter: an expected
+`3.61` is not matched by `3.605551275463989`. To accept an unrounded answer, add
+`tol=0.01` (to `check_output`, `check_prints`, `check_var` or `check_returns`) and
+numbers within 0.01 match.
 
 For anything else, a run has `r.output` (the printed lines), `r.text` (the same as
 one string), `r.prompts` (the questions `input()` asked), `r.vars` (the variables
 afterwards), `r.error` (why it stopped, or `None`) and `r.call("name", args...)`,
 which calls one of the student's functions and returns a run with `.value`.
+
+### Hints students get without asking
+
+The error messages explain the common slips from the outline: `^` used for a
+power (noted whenever `^` appears, even though it runs), `2x` with no `*`, `x` or
+`×` for multiplying, curly quotation marks pasted from a document, `=` in an `if`,
+a missing colon, a variable used before the line that sets it (naming both lines),
+`Area` where `area` was meant, `sqrt` or `pi` without `math.`, forgetting `float()`
+around `input()`, `print` instead of `return`, a loop that never stops, and
+`print( )` left outside a loop.
 
 ### Limits on a student's program
 
@@ -132,7 +193,9 @@ which calls one of the student's functions and returns a run with `.value`.
   which must pass, and on its starter code, which must not. A model solution is the
   file `teacher/solutions/<task file name>/<function name>.py`, for example
   `teacher/solutions/02_variables/rectangle.py`. To try some other code against a task:
-  `python teacher/check_tasks.py rectangle path/to/code.py`
+  `python teacher/check_tasks.py rectangle path/to/code.py`. A Predict task needs no
+  solution: its programs just have to run. `python teacher/check_tasks.py --answers`
+  prints the answers to every Predict task.
 - **`teacher/Preview Site.cmd`** opens the site from this folder, so you can try a
   task as a student before publishing. (Opening `index.html` by double-clicking
   doesn't work: a browser won't start Python from a file.)
@@ -175,7 +238,8 @@ libraries in this folder, so that everything comes from the same address as the 
    `pyodide.mjs`, `pyodide.asm.mjs`, `pyodide.asm.wasm`, `python_stdlib.zip` and
    `pyodide-lock.json` into `vendor/pyodide/`.
 2. CodeMirror: from the `codemirror` package, version 5, copy `lib/codemirror.js`,
-   `lib/codemirror.css`, `mode/python/python.js`, `addon/edit/matchbrackets.js` and
-   `addon/selection/active-line.js` into `vendor/codemirror/`, keeping those folders.
+   `lib/codemirror.css`, `mode/python/python.js`, `addon/edit/matchbrackets.js`,
+   `addon/selection/active-line.js` and `addon/runmode/runmode.js` into
+   `vendor/codemirror/`, keeping those folders.
 3. In `index.html`, set `PYODIDE_URL = "vendor/pyodide/"` and
    `CODEMIRROR_URL = "vendor/codemirror/"`.
